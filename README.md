@@ -3,10 +3,15 @@
 A retro 16-bit vertical-scrolling space shooter. Zero dependencies, zero build
 step, runs in any modern browser.
 
-Six waves of flying formations and terrain turrets, a shop between waves, a boss
-finale. All sprites are hand-drawn programmatic pixel art baked to offscreen
-canvases at load; rendered at an internal 240×320 buffer with nearest-neighbor
-scaling for crisp pixels.
+Twelve authored waves, then **endless deep space**: procedurally generated
+waves that keep climbing in density, speed and HP, with scaling mega-bosses
+every third wave (and eventually two at once). Homing missiles, autofire, a
+radar minimap, wingman shuttles, and drifting obstacles — asteroids, burnt-out
+wrecks and indestructible armored hulks — round out the chaos. All sprites are
+hand-drawn programmatic pixel art baked to offscreen canvases at load (enemies
+cycle 3 animation frames; obstacles are procedurally baked for variety);
+rendered at an internal 240×320 buffer with nearest-neighbor scaling, with
+additive-blend glow for bullets, engines, powerups and explosions.
 
 ---
 
@@ -37,12 +42,17 @@ browser from ~2018 onward.
 |---------------------------|---------------------------------|
 | Arrow keys / WASD         | Move the ship                   |
 | Space                     | Fire (also: start, skip, buy)   |
+| X / M                     | Fire a homing missile           |
 | Enter                     | Confirm / advance to next wave  |
 
 ### Objective
 
-Survive 6 waves of enemies, culminating in a boss. Score points by destroying
-enemies and clearing waves. Spend your score in the shop between waves.
+Survive as long as you can. Waves 1–12 are authored — the Warden mid-boss
+guards wave 6, the Dreadmaw awaits at wave 12 — then the game goes endless:
+procedurally generated waves of increasing density, with a scaled-up boss
+every third wave (Warden and Dreadmaw alternate, and from wave 24 they attack
+*together*, with stacking HP forever). Score points by destroying enemies,
+obstacles and clearing waves. Spend your score in the shop between waves.
 
 ### Lives
 
@@ -54,47 +64,94 @@ lives are consumed — shields stack.
 
 ### Enemies
 
-| Enemy      | Behavior                                                        | Points |
-|------------|-----------------------------------------------------------------|--------|
-| Grunt (red)| Flies straight down in V-formations                             | 100    |
-| Sine (green)| Sweeps in a horizontal sine wave while descending              | 150    |
-| Spiral (pink)| Orbits in from off-screen, then dives                          | 200    |
-| Turret (gray)| Sits on scrolling terrain, fires aimed shots at the player     | 300    |
-| Boss (wave 6)| Sweeps, cycles 3 fire patterns (spread / aimed burst / twin)   | 3000   |
+| Enemy            | Behavior                                                       | Points |
+|------------------|----------------------------------------------------------------|--------|
+| Grunt (beetle)   | Flies straight down in V-formations; shoots in later waves     | 100    |
+| Sine (wraith)    | Sweeps in a horizontal sine wave while descending              | 150    |
+| Diver (dart)     | Cruises in, blinks to lock on, then dashes at the player       | 150    |
+| Spiral (eyeball) | Orbits in from off-screen, then dives                          | 200    |
+| Weaver (wasp)    | Weaves on a sine while dropping stingers straight down         | 200    |
+| Turret (pod)     | Sits on scrolling terrain, fires aimed shots at the player     | 300    |
+| Hunter (mantis)  | Hovers, strafes to the player's column, fires aimed twin bolts | 350    |
+| Warden (wave 6)  | Mid-boss: sweeps, alternates radial bursts and aimed fans      | 2000   |
+| Dreadmaw (wave 12)| Final boss: 3 fire patterns; enrages below half health        | 5000   |
+
+Basic enemies gain extra HP as waves progress, and all speeds, fire rates and
+bullet speeds scale up wave over wave.
+
+**Firepower:** gun bullets are deliberately weak — a global `BULLET_DAMAGE_SCALE`
+(`0.4`, in `player.js`) multiplies all player-bullet damage, so everything takes
+roughly 2.5× as many shots to kill as its raw HP would suggest. A plain shot
+deals `0.4`; each **Heavy Rounds** level adds a full `+1` *before* scaling
+(`(1 + level) × 0.4`), so the upgrade matters more than ever. Missiles and the
+Mega Bomb bypass this scale entirely — they're the efficient answer to the
+late-game HP curve.
 
 ### Wave progression
 
-| Wave | Contents                                           | Clear bonus |
+| Wave | Highlights                                         | Clear bonus |
 |------|----------------------------------------------------|-------------|
-| 1    | 3× V-formation                                     | 100         |
-| 2    | V + sine line + 2 turrets (terrain debut)          | 200         |
-| 3    | 2× sine + 3 turrets                                | 300         |
-| 4    | Spiral + 2× V                                      | 400         |
-| 5    | Sine + spiral + 4 turrets                          | 500         |
-| 6    | 2× spiral + V + **boss**                           | 1000        |
+| 1    | V-formations + sine line (intro)                   | 100         |
+| 2    | Turrets debut                                      | 200         |
+| 3    | Kamikaze divers debut, obstacles start drifting in | 300         |
+| 4    | Weaver wasps debut                                 | 400         |
+| 5    | Spiral storms + shooting grunts                    | 500         |
+| 6    | **The Warden** (mid-boss) + escorts                | 800         |
+| 7    | Mantis hunters debut                               | 850         |
+| 8    | Turret gauntlet + dense mixed assault              | 950         |
+| 9    | Double spiral + hunters                            | 1050        |
+| 10   | Swarm pressure: everything in numbers              | 1200        |
+| 11   | The rush: every enemy type, fast                   | 1400        |
+| 12   | **The Dreadmaw** + escort waves                    | 2500        |
+| 13+  | Endless deep space: seeded procedural barrages     | 900 + ramp  |
+| 15, 18, 21… | Boss every 3rd wave, HP scaling forever     | 1800 + ramp |
+| 24+  | Boss waves field **both** bosses at once           | —           |
 
-### Powerups (dropped by kills, ~14% chance)
+Boss waves end the moment the last boss falls — remaining enemies
+chain-detonate.
+
+### Obstacles (from wave 3)
+
+Big debris drifts down through the battlefield. All obstacles block bullets
+from both sides (use them as cover!) and hurt on contact.
+
+| Obstacle | Destroyable | Notes                                          |
+|----------|-------------|------------------------------------------------|
+| Asteroid | Yes (HP scales with wave) | Spinning rock, worth 150+ points |
+| Wreck    | Yes (more HP)             | Burnt-out hull, embers still glowing, 300+ points |
+| Hulk     | **No**                    | Armored slab with warning stripes — shots just spark off |
+
+### Powerups (dropped by kills, ~12% chance)
 
 | Pickup | Effect                                   |
 |--------|------------------------------------------|
 | Shield (blue)  | +1 shield (stacks; absorbs one hit)  |
 | Rapid (orange) | 8 seconds of 45% faster firing       |
+| Bomb (red)     | Clears enemy bullets, heavy damage to everything on screen |
+| Shuttle (green)| Wingman ship doubles your shots for 10 seconds |
 | Life (pink)    | +1 life (capped at 5)                |
 
 ### Shop (between waves)
 
 Upgrades persist for the rest of the run. Score **is** your currency —
-purchases deduct from score.
+purchases deduct from score. The list scrolls (7 rows visible).
 
-| Upgrade        | Max level | Base cost | Effect per level         |
-|----------------|-----------|-----------|--------------------------|
-| Rapid Fire     | 3         | 400       | Fire rate ×0.75 (faster) |
-| Spread Shot    | 2         | 800       | +2 angled bullets        |
-| Shield         | 3         | 600       | +1 shield charge         |
-| Thrusters      | 3         | 300       | Move speed ×1.15         |
-| Heavy Rounds   | 2         | 1000      | +1 bullet damage         |
+| Item           | Max level | Base cost | Effect per level / purchase |
+|----------------|-----------|-----------|------------------------------|
+| Rapid Fire     | 3         | 500       | Fire rate ×0.75 (faster)     |
+| Spread Shot    | 2         | 900       | +2 angled bullets            |
+| Heavy Rounds   | 3         | 1200      | +1 bullet damage (before the 0.4 scale) |
+| Autofire       | 1         | 800       | Guns fire continuously, hands-free |
+| Missile Bay    | 3         | 600       | +1 missile storage slot      |
+| Missile        | repeatable| 300       | Loads one homing missile (needs an empty bay; X to fire) |
+| Shield         | 3         | 700       | +1 shield charge             |
+| Thrusters      | 3         | 350       | Move speed ×1.15             |
+| Radar          | 1         | 500       | Minimap of the corridor, incl. 1.5 screens of incoming enemies |
+| Shuttle Escort | repeatable| 700       | Wingman for the first 10s of the next wave |
 
-Cost scales linearly per level (e.g. Rapid Fire: 400 → 800 → 1200).
+Missiles home in on the nearest enemy and detonate with splash damage —
+they're the answer to late-game bosses. Cost scales linearly per level for
+leveled upgrades (e.g. Rapid Fire: 500 → 1000 → 1500).
 
 Shop controls: Up/Down select, Space buy, Enter advance to next wave.
 
@@ -104,24 +161,26 @@ Shop controls: Up/Down select, Space buy, Enter advance to next wave.
 
 ### Architecture
 
-Flat module layout — 13 ES modules under the project root, all loaded by a
+Flat module layout — 15 ES modules under the project root, all loaded by a
 single `<script type="module">` in `index.html`. No bundler; the browser
 resolves imports.
 
 ```
 index.html          ─ canvas + CSS (pixelated scaling)
 main.js             ─ state machine, game loop, composition root
-util.js             ─ shared math, palette, RNG, particles
+util.js             ─ shared math, palette, RNG, particles/explosions
 sprites.js          ─ pixel-art data, bake-to-canvas, bitmap font
 input.js            ─ keyboard → normalized actions
-player.js           ─ player entity + firing
+player.js           ─ player entity, firing, wingman shuttle
 bullets.js          ─ bullet pool, update, collision hook
-enemies.js          ─ enemy factory, movement patterns, boss, draw
-waves.js            ─ wave timelines, formation spawners
-terrain.js          ─ scrolling starfield background
+enemies.js          ─ enemy factory, movement patterns, bosses, draw
+waves.js            ─ authored waves + endless procedural generator
+obstacles.js        ─ asteroids / wrecks / hulks (procedurally baked)
+missiles.js         ─ homing missile pool
+terrain.js          ─ parallax starfield background
 powerups.js         ─ powerup spawn/update/apply
-shop.js             ─ upgrade data + shop UI
-hud.js              ─ in-game overlay (score/lives/wave)
+shop.js             ─ upgrade data + scrolling shop UI
+hud.js              ─ in-game overlay (score/lives/wave/radar)
 ```
 
 Dependency graph (all arrows point to imports):
@@ -179,10 +238,10 @@ Five top-level states in `main.js`; each has its own `updateXxx(dt)` and
       │         ▲
     space       │ death
       ▼         │
-   PLAYING ─────┘ ────────► VICTORY (after wave 6)
-      │                        ▲
-      │ last enemy dies        │
-      ▼                        │
+   PLAYING ─────┘            (endless — no victory state)
+      │
+      │ last enemy dies
+      ▼
   WAVE_CLEAR ─── 2s tally ──► SHOP ── enter ──► PLAYING (next wave)
 ```
 
@@ -346,15 +405,16 @@ Manual — open the page and play. There are no tests. A quick smoke check:
 1. Title shows, space → wave 1 spawns the V.
 2. Fire hits enemies, particles spawn, score increments.
 3. Clear the wave → tally animates → shop appears with correct points.
-4. Buy Thrusters (300) → next wave, ship is faster.
+4. Buy Thrusters (350) → next wave, ship is faster.
 5. Take a hit → lose a life; with shield, the shield absorbs first.
-6. Reach wave 6 → boss appears, health bar visible, dies with a big explosion
-   → victory screen.
+6. Reach wave 6 → Warden mid-boss appears (wave 12 → Dreadmaw), health bar
+   visible, dies with chained explosions → endless waves continue.
+7. Buy a Missile Bay + Missile → X fires a homing missile with splash damage.
+8. From wave 3, obstacles drift down: shootable asteroids/wrecks, immortal hulks.
 
 ### Out of scope (deliberate)
 
-Audio, gamepad/touch, high-score persistence, multi-frame sprite animation,
-parallax layers, level editor, mid-run save. The `input.js` module exposes a
+Audio, gamepad/touch, high-score persistence, level editor, mid-run save. The `input.js` module exposes a
 `getAxis() / isFiring()` abstraction so gamepad polling can be added there
 without touching consumers.
 

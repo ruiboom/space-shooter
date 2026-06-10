@@ -9,6 +9,7 @@ const KEYMAP = {
   ' ': 'fire', 'Spacebar': 'fire',
   'Enter': 'confirm',
   'b': 'bomb', 'B': 'bomb',
+  'x': 'missile', 'X': 'missile', 'm': 'missile', 'M': 'missile',
   'Escape': 'escape',
 };
 
@@ -19,7 +20,7 @@ function normalize(e) {
 export function initInput() {
   window.addEventListener('keydown', (e) => {
     const k = normalize(e);
-    if (['left', 'right', 'up', 'down', 'fire', 'confirm', 'bomb'].includes(k)) {
+    if (['left', 'right', 'up', 'down', 'fire', 'confirm', 'bomb', 'missile'].includes(k)) {
       e.preventDefault();
     }
     if (!keys.has(k)) justPressed.add(k);

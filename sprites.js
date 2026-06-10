@@ -59,132 +59,439 @@ const GLYPHS = {
   ' ': [0b000, 0b000, 0b000, 0b000, 0b000],
 };
 
-export function drawChar(ctx, ch, x, y, colorIdx = 7) {
+export function drawChar(ctx, ch, x, y, colorIdx = 7, scale = 1) {
   const g = GLYPHS[ch] || GLYPHS['?'];
   ctx.fillStyle = PALETTE[colorIdx];
   for (let row = 0; row < 5; row++) {
     const bits = g[row];
     for (let col = 0; col < 3; col++) {
       if (bits & (1 << (2 - col))) {
-        ctx.fillRect(x + col, y + row, 1, 1);
+        ctx.fillRect(x + col * scale, y + row * scale, scale, scale);
       }
     }
   }
 }
 
-// spacing of 1 px -> each char takes 4 px
-export function drawText(ctx, text, x, y, colorIdx = 7) {
+// spacing of 1 px -> each char takes 4 px (times scale)
+export function drawText(ctx, text, x, y, colorIdx = 7, scale = 1) {
   let cx = x;
   const s = String(text).toUpperCase();
   for (let i = 0; i < s.length; i++) {
-    drawChar(ctx, s[i], cx, y, colorIdx);
-    cx += 4;
+    drawChar(ctx, s[i], cx, y, colorIdx, scale);
+    cx += 4 * scale;
   }
 }
 
-export function textWidth(text) {
-  return String(text).length * 4 - 1;
+export function textWidth(text, scale = 1) {
+  return String(text).length * 4 * scale - scale;
 }
 
-export function drawTextCentered(ctx, text, cx, y, colorIdx = 7) {
-  const w = textWidth(text);
-  drawText(ctx, text, Math.floor(cx - w / 2), y, colorIdx);
+export function drawTextCentered(ctx, text, cx, y, colorIdx = 7, scale = 1) {
+  const w = textWidth(text, scale);
+  drawText(ctx, text, Math.floor(cx - w / 2), y, colorIdx, scale);
 }
 
 // ===== Sprites =====
 // Definition format: array of equal-length strings. Each char is a hex palette
 // index (0-f, uppercase too), or '.' for transparent.
+// Animation: sprites with `_b` (and optionally `_c`) variants cycle
+// a → b → c → b at runtime. Entries in SPRITE_MIRRORS bake a horizontally
+// flipped copy of another def (used for the ship banking right).
 
 const SPRITE_DEFS = {
+  // Sleek interceptor: white spine, cyan canopy, gray hull, red wingtips.
   player: [
-    '....7....',
-    '....7....',
-    '...767...',
-    '..66666..',
-    '.6677766.',
-    '666777666',
-    '66.777.66',
-    '.6.777.6.',
-    '.c.9c9.c.',
-    '...c.c...',
-    '...9.9...',
+    '......7......',
+    '.....676.....',
+    '.....6c6.....',
+    '.....6c6.....',
+    '....66c66....',
+    '....6ccc6....',
+    '...66ccc66...',
+    '..8666c6668..',
+    '.88666766688.',
+    '8866677766688',
+    '86.6677766.68',
+    '8..6677766..8',
+    '...55.6.55...',
   ],
-  player_thrust: [
-    '..9.9..',
-    '.9a9a9.',
-    '9aaaaa9',
-    '.9999..',
-    '..9....',
+  // Banking left: port wing tucks in, engines shift starboard.
+  player_bank_l: [
+    '......7......',
+    '.....676.....',
+    '.....6c6.....',
+    '.....6c6.....',
+    '....66c66....',
+    '....6ccc6....',
+    '...66ccc66...',
+    '..8666c6668..',
+    '.88666766688.',
+    '.886677766688',
+    '.86.677766.68',
+    '.8..677766..8',
+    '....55.6.55..',
   ],
+  // Wingman shuttle: half-size escort fighter.
+  shuttle: [
+    '....7....',
+    '...676...',
+    '...6c6...',
+    '..66c66..',
+    '.866c668.',
+    '886666688',
+    '8.66766.8',
+    '...5.5...',
+  ],
+  // Homing missile: white tip, gray body, red fins, orange exhaust.
+  missile: [
+    '.7.',
+    '676',
+    '676',
+    '676',
+    '868',
+    '.9.',
+  ],
+  // Plasma bolt: white-hot tip fading to orange tail.
   player_bullet: [
-    '.a.',
-    'aaa',
+    '.7.',
+    '7a7',
     '7a7',
     '.a.',
+    '.9.',
+    '.9.',
   ],
   enemy_bullet: [
-    '.8.',
-    '888',
-    '.8.',
+    '.888.',
+    '87778',
+    '87778',
+    '.888.',
   ],
+  enemy_bolt: [
+    '.e.',
+    'e7e',
+    'e7e',
+    '.e.',
+  ],
+  // Demon beetle: red carapace, glowing yellow eyes, white fangs.
   enemy_grunt: [
-    '.8888.',
-    '822228',
-    '822228',
-    '888888',
-    '.2882.',
-    '.8..8.',
+    '.8........8.',
+    '..8......8..',
+    '..88888888..',
+    '.8822222288.',
+    '882a2222a288',
+    '882222222288',
+    '.8822882288.',
+    '..88822888..',
+    '..7..88..7..',
+    '.8..8..8..8.',
   ],
+  enemy_grunt_b: [
+    '.8........8.',
+    '..8......8..',
+    '..88888888..',
+    '.8822222288.',
+    '882a2222a288',
+    '882222222288',
+    '.8822882288.',
+    '..88822888..',
+    '.7...88...7.',
+    '8..8....8..8',
+  ],
+  enemy_grunt_c: [
+    '.8........8.',
+    '..8......8..',
+    '..88888888..',
+    '.8822222288.',
+    '882a2222a288',
+    '882222222288',
+    '.8822882288.',
+    '..88822888..',
+    '...7.88.7...',
+    '.8.8....8.8.',
+  ],
+  // Wraith skull: hooded skull, hollow sockets weeping red.
   enemy_sine: [
-    '..bb..',
-    '.b33b.',
-    'b3333b',
-    'b3773b',
-    '.b33b.',
-    '..bb..',
+    '..dddddddd..',
+    '.dd777777dd.',
+    '.d77777777d.',
+    'dd70077007dd',
+    'dd78877887dd',
+    '.d77777777d.',
+    '.d77177177d.',
+    '..d777777d..',
+    '..71717171..',
+    '...777777...',
+    '..d..dd..d..',
+    '.d........d.',
   ],
+  enemy_sine_b: [
+    '..dddddddd..',
+    '.dd777777dd.',
+    '.d77777777d.',
+    'dd70077007dd',
+    'dd78877887dd',
+    '.d77777777d.',
+    '.d77177177d.',
+    '..d777777d..',
+    '..71717171..',
+    '...777777...',
+    '...d.dd.d...',
+    '..d......d..',
+  ],
+  enemy_sine_c: [
+    '..dddddddd..',
+    '.dd777777dd.',
+    '.d77777777d.',
+    'dd70077007dd',
+    'dd78877887dd',
+    '.d77777777d.',
+    '.d77177177d.',
+    '..d777777d..',
+    '..71717171..',
+    '...777777...',
+    '..d.d..d.d..',
+    '...d....d...',
+  ],
+  // Eyeball horror: bloodshot eye with writhing tendrils.
   enemy_spiral: [
-    '..ee..',
-    '.e22e.',
-    'e2882e',
-    'e2882e',
-    '.e22e.',
-    '..ee..',
+    '.2...22...2.',
+    '..2.2222.2..',
+    '..22777722..',
+    '.27e7777e72.',
+    '.2778888772.',
+    '277880088772',
+    '277880088772',
+    '.2778888772.',
+    '.27e7777e72.',
+    '..22777722..',
+    '..2.2222.2..',
+    '.2...22...2.',
   ],
+  enemy_spiral_b: [
+    '.2...22...2.',
+    '..2.2222.2..',
+    '..22777722..',
+    '.27e7777e72.',
+    '.2778888772.',
+    '278800888772',
+    '278800888772',
+    '.2778888772.',
+    '.27e7777e72.',
+    '..22777722..',
+    '..2.2222.2..',
+    '.2...22...2.',
+  ],
+  enemy_spiral_c: [
+    '.2...22...2.',
+    '..2.2222.2..',
+    '..22777722..',
+    '.27e7777e72.',
+    '.2778888772.',
+    '277888008772',
+    '277888008772',
+    '.2778888772.',
+    '.27e7777e72.',
+    '..22777722..',
+    '..2.2222.2..',
+    '.2...22...2.',
+  ],
+  // Spiked gun pod with a baleful red eye.
   turret: [
-    '.5555.',
-    '566665',
-    '566665',
-    '556655',
-    '.5..5.',
+    '.5..5555..5.',
+    '.5555555555.',
+    '555222222555',
+    '552288882255',
+    '55228ee82255',
+    '552288882255',
+    '555222222555',
+    '.5555555555.',
+    '.55..55..55.',
   ],
-  turret_barrel: [
-    '.8.',
-    '.8.',
-    '.8.',
+  turret_b: [
+    '.5..5555..5.',
+    '.5555555555.',
+    '555222222555',
+    '552222222255',
+    '552288882255',
+    '552222222255',
+    '555222222555',
+    '.5555555555.',
+    '.55..55..55.',
+  ],
+  turret_c: [
+    '.5..5555..5.',
+    '.5555555555.',
+    '555222222555',
+    '552288882255',
+    '5522ee882255',
+    '552288882255',
+    '555222222555',
+    '.5555555555.',
+    '.55..55..55.',
+  ],
+  // Kamikaze fang-dart: dives straight at the player.
+  enemy_diver: [
+    '88....88',
+    '.888888.',
+    '.822228.',
+    '8a2222a8',
+    '82222228',
+    '.822228.',
+    '.872278.',
+    '..8228..',
+    '..8228..',
+    '...88...',
+    '...88...',
+  ],
+  enemy_diver_b: [
+    '88....88',
+    '.888888.',
+    '.822228.',
+    '87222278',
+    '82222228',
+    '.822228.',
+    '.872278.',
+    '..8228..',
+    '..8228..',
+    '...88...',
+    '...88...',
+  ],
+  enemy_diver_c: [
+    '88....88',
+    '.888888.',
+    '.822228.',
+    '82222228',
+    '82222228',
+    '.822228.',
+    '.872278.',
+    '..8228..',
+    '..8228..',
+    '...88...',
+    '....8...',
+  ],
+  // Hell wasp: drops stingers straight down.
+  enemy_weaver: [
+    '.66......66.',
+    '66..0880..66',
+    '.66aaaaaa66.',
+    '..00aaaa00..',
+    '..aaaaaaaa..',
+    '..00aaaa00..',
+    '...aaaaaa...',
+    '...00aa00...',
+    '....aaaa....',
+    '.....77.....',
+  ],
+  enemy_weaver_b: [
+    '............',
+    '6...0880...6',
+    '66.aaaaaa.66',
+    '.6600aa0066.',
+    '..aaaaaaaa..',
+    '..00aaaa00..',
+    '...aaaaaa...',
+    '...00aa00...',
+    '....aaaa....',
+    '.....77.....',
+  ],
+  enemy_weaver_c: [
+    '..6......6..',
+    '6.6.0880.6.6',
+    '.66aaaaaa66.',
+    '..00aaaa00..',
+    '..aaaaaaaa..',
+    '..00aaaa00..',
+    '...aaaaaa...',
+    '...00aa00...',
+    '....aaaa....',
+    '.....77.....',
+  ],
+  // Mantis stalker: tracks the player and fires aimed bolts.
+  enemy_hunter: [
+    '....3333....',
+    '...333333...',
+    '..33888833..',
+    '..b333333b..',
+    '.bb333333bb.',
+    'bb.3b33b3.bb',
+    'b..333333..b',
+    '...333333...',
+    '..3..33..3..',
+    'bb...33...bb',
+    '.bb..33..bb.',
+    '..b..33..b..',
+  ],
+  enemy_hunter_b: [
+    '....3333....',
+    '...333333...',
+    '..33888833..',
+    '..b333333b..',
+    '.bb333333bb.',
+    'bb.3b33b3.bb',
+    'b..333333..b',
+    '...333333...',
+    '..3..33..3..',
+    'b....33....b',
+    'bb...33...bb',
+    '.b...33...b.',
+  ],
+  enemy_hunter_c: [
+    '....3333....',
+    '...333333...',
+    '..33888833..',
+    '..b333333b..',
+    '.bb333333bb.',
+    'bb.3b33b3.bb',
+    'b..333333..b',
+    '...333333...',
+    '..3..33..3..',
+    'b.b..33..b.b',
+    '.b.b.33.b.b.',
+    '..b..33..b..',
   ],
   powerup_shield: [
-    '.cccc.',
-    'c7777c',
-    'c7cc7c',
-    'c7cc7c',
-    'c7777c',
-    '.cccc.',
+    '.ccccc.',
+    'c77777c',
+    'c77c77c',
+    'c7ccc7c',
+    'c77c77c',
+    '.c777c.',
+    '..ccc..',
   ],
   powerup_rapid: [
-    '.aaaa.',
-    'a9aa9a',
-    'a9aa9a',
-    'a999aa',
-    'a9aa9a',
-    '.aaaa.',
+    '.99aa9.',
+    '99aa999',
+    '99aaaa9',
+    '999aa99',
+    '99aa999',
+    '.9a999.',
+    '.99999.',
   ],
   powerup_life: [
-    '.e.e..',
-    'eeeee.',
-    'eeeee.',
-    '.eee..',
-    '..e...',
+    '.ee.ee.',
+    'efeeeee',
+    'eeeeeee',
+    '.eeeee.',
+    '..eee..',
+    '...e...',
+  ],
+  powerup_bomb: [
+    '....a..',
+    '...7...',
+    '.55555.',
+    '5566555',
+    '5558555',
+    '5555555',
+    '.55555.',
+  ],
+  powerup_shuttle: [
+    '...7...',
+    '..676..',
+    '..6c6..',
+    '.66666.',
+    '8666668',
+    '..5.5..',
+    '..9.9..',
   ],
   star_s: ['7'],
   star_m: ['.7.', '777', '.7.'],
@@ -195,6 +502,11 @@ const SPRITE_DEFS = {
     '.eee.',
     '..e..',
   ],
+};
+
+// Horizontally flipped copies baked from another def.
+const SPRITE_MIRRORS = {
+  player_bank_r: 'player_bank_l',
 };
 
 const SPRITES = {};
@@ -212,11 +524,21 @@ function scaleFor(id) {
   return SPRITE_SCALES[id] ?? DEFAULT_SCALE;
 }
 
+function mirrorRows(rows) {
+  return rows.map((r) => r.split('').reverse().join(''));
+}
+
 export function bakeSprites() {
   for (const id in SPRITE_DEFS) {
     const scale = scaleFor(id);
     SPRITES[id] = bakeSprite(SPRITE_DEFS[id], scale);
     SPRITES[id + '_flash'] = bakeSpriteFlash(SPRITE_DEFS[id], scale);
+  }
+  for (const id in SPRITE_MIRRORS) {
+    const rows = mirrorRows(SPRITE_DEFS[SPRITE_MIRRORS[id]]);
+    const scale = scaleFor(SPRITE_MIRRORS[id]);
+    SPRITES[id] = bakeSprite(rows, scale);
+    SPRITES[id + '_flash'] = bakeSpriteFlash(rows, scale);
   }
 }
 
@@ -229,8 +551,9 @@ function bakeSprite(rows, scale) {
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const ch = rows[y][x];
-      if (ch === '.') continue;
+      if (!ch || ch === '.') continue;
       const idx = parseInt(ch, 16);
+      if (Number.isNaN(idx)) continue;
       g.fillStyle = PALETTE[idx];
       g.fillRect(x * scale, y * scale, scale, scale);
     }
@@ -248,7 +571,8 @@ function bakeSpriteFlash(rows, scale) {
   g.fillStyle = PALETTE[7];
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
-      if (rows[y][x] !== '.') g.fillRect(x * scale, y * scale, scale, scale);
+      const ch = rows[y][x];
+      if (ch && ch !== '.') g.fillRect(x * scale, y * scale, scale, scale);
     }
   }
   return { canvas: c, w: w * scale, h: h * scale };
@@ -268,4 +592,8 @@ export function drawSpriteFlash(ctx, id, x, y) {
 
 export function getSprite(id) {
   return SPRITES[id];
+}
+
+export function hasSprite(id) {
+  return !!SPRITES[id];
 }
